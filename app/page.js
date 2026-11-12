@@ -1,10 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  verifyToken, getWorkers, createWorker, getWorkerCode, 
-  deployWorker, deleteWorker, getSubdomain, updateSubdomain 
-} from './actions';
+import { verifyToken, getWorkers, createWorker, getWorkerCode, deployWorker, deleteWorker, getSubdomain, updateSubdomain } from './actions';
 
 export default function Home() {
   const [token, setToken] = useState('');
@@ -12,226 +9,232 @@ export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
-  
   const [workers, setWorkers] = useState([]);
   const [subdomain, setSubdomain] = useState('');
   const [newSubdomain, setNewSubdomain] = useState('');
   const [newWorkerName, setNewWorkerName] = useState('');
-
   const [editingWorker, setEditingWorker] = useState(null);
   const [code, setCode] = useState('');
 
-  // Auto Load from LocalStorage
   useEffect(() => {
-    const savedToken = localStorage.getItem('cf_token');
-    const savedAcc = localStorage.getItem('cf_acc');
-    if (savedToken && savedAcc) {
-      setToken(savedToken);
-      setAccountId(savedAcc);
-      autoConnect(savedToken, savedAcc);
-    }
+    const t = localStorage.getItem('cf_token');
+    const a = localStorage.getItem('cf_acc');
+    if (t && a) { setToken(t); setAccountId(a); autoConnect(t, a); }
   }, []);
 
-  const autoConnect = async (tk, acc) => {
+  const autoConnect = async (t, a) => {
     setLoading(true);
-    const res = await verifyToken(tk);
-    if (res.success) {
-      setIsConnected(true);
-      loadData(tk, acc);
-    } else {
-      disconnect(); // Auto clear invalid tokens
-    }
+    const r = await verifyToken(t);
+    if (r.success) { setIsConnected(true); await loadData(t, a); }
+    else disconnect();
     setLoading(false);
   };
 
   const handleConnect = async () => {
-    if (!token || !accountId) return setStatus({ type: 'error', msg: 'Token और ID डालें' });
+    if (!token || !accountId) return setStatus({ type: 'error', msg: 'API Token aur Account ID enter karein.' });
     setLoading(true);
-    const res = await verifyToken(token);
-    if (res.success) {
+    const r = await verifyToken(token);
+    if (r.success) {
       localStorage.setItem('cf_token', token);
       localStorage.setItem('cf_acc', accountId);
       setIsConnected(true);
-      loadData(token, accountId);
-    } else {
-      setStatus({ type: 'error', msg: res.message });
-    }
+      await loadData(token, accountId);
+    } else setStatus({ type: 'error', msg: r.message });
     setLoading(false);
   };
 
   const disconnect = () => {
-    localStorage.removeItem('cf_token');
-    localStorage.removeItem('cf_acc');
-    setIsConnected(false);
-    setToken('');
-    setAccountId('');
-    setWorkers([]);
-    setStatus({ type: '', msg: '' });
+    localStorage.removeItem('cf_token'); localStorage.removeItem('cf_acc');
+    setIsConnected(false); setToken(''); setAccountId(''); setWorkers([]);
+    setSubdomain(''); setEditingWorker(null); setStatus({ type: '', msg: '' });
   };
 
-  const loadData = async (tk = token, acc = accountId) => {
-    setStatus({ type: 'info', msg: 'डेटा लोड हो रहा है...' });
-    const wRes = await getWorkers(tk, acc);
-    if (wRes.success) {
-      setWorkers(wRes.data);
-      const sRes = await getSubdomain(tk, acc);
-      if (sRes.success) setSubdomain(sRes.data);
+  const loadData = async (t = token, a = accountId) => {
+    setStatus({ type: 'info', msg: 'Cloudflare data loading...' });
+    const r = await getWorkers(t, a);
+    if (r.success) {
+      setWorkers(r.data || []);
+      const s = await getSubdomain(t, a);
+      if (s.success) setSubdomain(s.data);
       setStatus({ type: '', msg: '' });
-    } else {
-      setStatus({ type: 'error', msg: wRes.message });
-    }
+    } else setStatus({ type: 'error', msg: r.message });
   };
 
   const handleCreateWorker = async () => {
-    if (!newWorkerName.match(/^[a-z0-9-]+$/)) return setStatus({ type: 'error', msg: 'सिर्फ lowercase, numbers, hyphens' });
-    setStatus({ type: 'info', msg: 'बन रहा है...' });
-    const res = await createWorker(token, accountId, newWorkerName);
-    if (res.success) {
-      setNewWorkerName('');
-      setStatus({ type: 'success', msg: 'Worker बन गया! Domain ऑटो-एनेबल है।' });
-      loadData(); // Refresh list to show new domain
-    } else {
-      setStatus({ type: 'error', msg: res.message });
-    }
+    if (!/^[a-z0-9-]+$/.test(newWorkerName)) return setStatus({ type: 'error', msg: 'Use lowercase letters, numbers and hyphens only.' });
+    setStatus({ type: 'info', msg: 'Creating Worker...' });
+    const r = await createWorker(token, accountId, newWorkerName);
+    if (r.success) { setNewWorkerName(''); await loadData(); setStatus({ type: 'success', msg: 'Worker created successfully!' }); }
+    else setStatus({ type: 'error', msg: r.message });
   };
 
-  const handleEdit = async (name) => {
-    setStatus({ type: 'info', msg: 'कोड लोड हो रहा है...' });
-    const res = await getWorkerCode(token, accountId, name);
-    if (res.success) {
-      setCode(res.data);
-      setEditingWorker(name);
-      setStatus({ type: '', msg: '' });
-    } else {
-      setStatus({ type: 'error', msg: res.message });
-    }
+  const handleEdit = async name => {
+    setStatus({ type: 'info', msg: 'Loading Worker code...' });
+    const r = await getWorkerCode(token, accountId, name);
+    if (r.success) { setCode(r.data); setEditingWorker(name); setStatus({ type: '', msg: '' }); }
+    else setStatus({ type: 'error', msg: r.message });
   };
 
   const handleDeploy = async () => {
-    setStatus({ type: 'info', msg: 'Deploy हो रहा है...' });
-    const res = await deployWorker(token, accountId, editingWorker, code);
-    if (res.success) {
-      setStatus({ type: 'success', msg: 'Deploy सफल!' });
-      setEditingWorker(null);
-    } else {
-      setStatus({ type: 'error', msg: res.message });
-    }
+    setStatus({ type: 'info', msg: 'Deploying changes...' });
+    const r = await deployWorker(token, accountId, editingWorker, code);
+    if (r.success) { setEditingWorker(null); setStatus({ type: 'success', msg: 'Worker deployed successfully!' }); }
+    else setStatus({ type: 'error', msg: r.message });
   };
 
-  const handleDelete = async (name) => {
-    if (!confirm(`${name} को डिलीट करें?`)) return;
-    setStatus({ type: 'info', msg: 'डिलीट हो रहा है...' });
-    const res = await deleteWorker(token, accountId, name);
-    if (res.success) { loadData(); setStatus({ type: 'success', msg: 'डिलीट हो गया' }); }
+  const handleDelete = async name => {
+    if (!confirm('Delete ' + name + ' permanently?')) return;
+    const r = await deleteWorker(token, accountId, name);
+    if (r.success) { await loadData(); setStatus({ type: 'success', msg: 'Worker deleted.' }); }
+    else setStatus({ type: 'error', msg: r.message });
   };
 
-  const handleDownload = async (name) => {
-    setStatus({ type: 'info', msg: 'डाउनलोड हो रहा है...' });
-    const res = await getWorkerCode(token, accountId, name);
-    if (res.success) {
-      const blob = new Blob([res.data], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${name}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setStatus({ type: 'success', msg: 'डाउनलोड शुरू!' });
-    }
+  const handleDownload = async name => {
+    const r = await getWorkerCode(token, accountId, name);
+    if (r.success) {
+      const url = URL.createObjectURL(new Blob([r.data], { type: 'text/javascript' }));
+      const a = document.createElement('a'); a.href = url; a.download = name + '.js'; a.click();
+      URL.revokeObjectURL(url); setStatus({ type: 'success', msg: 'Download started.' });
+    } else setStatus({ type: 'error', msg: r.message });
   };
 
-  // UI Render
+  const handleSubdomain = async () => {
+    if (!newSubdomain.trim()) return setStatus({ type: 'error', msg: 'Enter a subdomain first.' });
+    const r = await updateSubdomain(token, accountId, newSubdomain.trim());
+    if (r.success) { setNewSubdomain(''); await loadData(); setStatus({ type: 'success', msg: 'Subdomain updated!' }); }
+    else setStatus({ type: 'error', msg: r.message });
+  };
+
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '15px', paddingBottom: '80px' }}>
-      
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ color: '#f38020', margin: 0 }}>⚡ CF Manager</h2>
-        {isConnected && <button onClick={disconnect} style={btnLogout}>Disconnect</button>}
-      </div>
+    <main className="shell">
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin:0; background:#080b16; color:#f5f7ff; font-family:'DM Sans',sans-serif; }
+        button,input,textarea { font:inherit; }
+        .shell { min-height:100vh; padding:30px 16px 60px; overflow:hidden; background:radial-gradient(ellipse at 10% 5%,#5546aa44,transparent 35%),radial-gradient(ellipse at 95% 25%,#00bde52b,transparent 32%),linear-gradient(145deg,#080b16,#11182c 55%,#090d1a); }
+        .wrap { max-width:900px; margin:auto; }
+        .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; gap:12px; }
+        .brand { display:flex; align-items:center; gap:13px; }
+        .logo { width:48px;height:48px;display:grid;place-items:center;border-radius:16px;font-size:25px;background:linear-gradient(145deg,#ffc078,#f07822 65%,#bd4c18);box-shadow:0 9px 25px #f0782255,inset 1px 1px 3px #fff9,inset -3px -4px 8px #8b310c77;transform:perspective(300px) rotateY(-9deg) rotateX(8deg); }
+        h1 { margin:0;font:700 22px 'Space Grotesk',sans-serif;letter-spacing:-.7px; }
+        .sub { color:#8994b3;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-top:3px; }
+        .glass { background:linear-gradient(135deg,#ffffff19,#ffffff08);border:1px solid #ffffff20;border-top-color:#ffffff38;border-radius:23px;box-shadow:0 22px 55px #0005,inset 0 1px #ffffff19;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px); }
+        .hero { padding:27px;margin-bottom:19px;position:relative;overflow:hidden; }
+        .hero:after { content:'✦';position:absolute;right:28px;top:-18px;font-size:120px;color:#ffffff09; }
+        .eyebrow { color:#a1acca;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase; }
+        h2 { font:700 clamp(26px,5vw,37px) 'Space Grotesk',sans-serif;letter-spacing:-1.2px;margin:10px 0 8px; }
+        .shine { color:#ffae68;background:linear-gradient(90deg,#ffbf7d,#f58b4c,#b7a7ff);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+        .muted { color:#929dbb;font-size:13px;line-height:1.6; }
+        .status { padding:13px 16px;border-radius:13px;margin-bottom:17px;font-size:13px; }
+        .success { color:#8df0c1;background:#0d8b5c22;border:1px solid #36d99a55; }
+        .error { color:#ff9d9d;background:#f0444422;border:1px solid #ff777755; }
+        .info { color:#a9c9ff;background:#4285f422;border:1px solid #6daaff55; }
+        .grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-bottom:18px; }
+        .panel { padding:22px;min-width:0;transition:.25s; }
+        .panel:hover { transform:translateY(-3px);border-color:#ffffff42;box-shadow:0 26px 60px #0007,inset 0 1px #ffffff22; }
+        .heading { display:flex;align-items:center;gap:12px;margin-bottom:17px; }
+        .ico { width:41px;height:41px;display:grid;place-items:center;border-radius:13px;background:linear-gradient(145deg,#ffffff27,#ffffff09);border:1px solid #ffffff24;box-shadow:inset 1px 1px #ffffff22,0 7px 18px #0004;font-size:18px; }
+        h3 { margin:0;font:600 16px 'Space Grotesk',sans-serif; }
+        .field { width:100%;height:48px;padding:0 14px;color:#f7f8ff;background:#070c1dcc;border:1px solid #ffffff20;border-radius:13px;outline:none;min-width:0; }
+        .field::placeholder { color:#74809f; }
+        .field:focus { border-color:#a18bff;box-shadow:0 0 0 3px #9278ff24; }
+        .stack { display:grid;gap:11px; }
+        .row { display:flex;gap:9px; }
+        .btn { border:0;border-radius:12px;padding:0 16px;min-height:44px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;transition:transform .2s,filter .2s; }
+        .btn:hover { transform:translateY(-2px);filter:brightness(1.1); }
+        .btn:active { transform:scale(.98); }
+        .btn:disabled { opacity:.55;cursor:not-allowed; }
+        .primary { background:linear-gradient(135deg,#ffc078,#f07829 70%,#d95720);box-shadow:0 8px 22px #ef762955,inset 0 1px #ffffff99,inset 0 -2px 5px #9e3c1788; }
+        .soft { background:linear-gradient(145deg,#ffffff25,#ffffff0c);border:1px solid #ffffff26;box-shadow:inset 0 1px #ffffff20,0 5px 15px #0003; }
+        .danger { color:#ff9caa;background:#ff526222;border:1px solid #ff718355; }
+        .stats { display:flex;gap:11px;margin-top:18px; }
+        .stat { flex:1;padding:12px 14px;border-radius:14px;background:#ffffff0b;border:1px solid #ffffff15; }
+        .stat strong { display:block;font:700 21px 'Space Grotesk',sans-serif; }
+        .stat span { color:#929dbb;font-size:10px; }
+        .workers { padding:22px; }
+        .worker { padding:16px;margin-top:11px;border-radius:16px;background:linear-gradient(135deg,#ffffff13,#ffffff06);border:1px solid #ffffff18;transition:.2s; }
+        .worker:hover { border-color:#a28eff77;background:#ffffff14; }
+        .wtop { display:flex;justify-content:space-between;gap:10px;align-items:center; }
+        .wname { font-weight:700;font-size:14px;overflow-wrap:anywhere; }
+        .dot { display:inline-block;width:8px;height:8px;border-radius:50%;background:#42dfa1;box-shadow:0 0 12px #42dfa1;margin-right:9px; }
+        .worker a { display:block;color:#a9bdff;font-size:12px;margin:9px 0 13px;overflow-wrap:anywhere;text-decoration:none; }
+        .worker a:hover { text-decoration:underline; }
+        .actions { display:flex;gap:8px;flex-wrap:wrap; }
+        .actions .btn { min-height:34px;padding:0 11px;font-size:11px; }
+        .empty { text-align:center;padding:34px 12px;color:#929dbb;border:1px dashed #ffffff2c;border-radius:15px;margin-top:15px; }
+        .editor { padding:22px; }
+        .editor textarea { width:100%;min-height:420px;resize:vertical;padding:16px;color:#dce5ff;background:#070c1d;border:1px solid #ffffff22;border-radius:14px;outline:none;font:13px/1.7 ui-monospace,monospace; }
+        .footer { text-align:center;color:#687493;font-size:10px;letter-spacing:1.5px;margin-top:28px; }
+        .login { max-width:480px;margin:8vh auto 0; }
+        @media(max-width:650px) { .shell{padding:21px 13px 45px}.grid{grid-template-columns:1fr;gap:13px}.hero{padding:22px}.panel,.workers,.editor{padding:18px}.brand h1{font-size:19px}.logo{width:43px;height:43px}.row .btn{padding:0 12px} }
+        @media(prefers-reduced-motion:reduce) { *,*:before,*:after{transition:none!important;animation:none!important} }
+      `}</style>
 
-      {/* Status Box */}
-      {status.msg && (
-        <div style={{ padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '13px', background: status.type === 'error' ? '#fee2e2' : status.type === 'success' ? '#dcfce7' : '#dbeafe', color: status.type === 'error' ? '#991b1b' : status.type === 'success' ? '#166534' : '#1e40af' }}>
-          {status.msg}
-        </div>
-      )}
+      <div className="wrap">
+        <header className="top">
+          <div className="brand"><div className="logo">ϟ</div><div><h1>CF Manager</h1><div className="sub">Cloudflare control center</div></div></div>
+          {isConnected && <button className="btn soft" onClick={disconnect}>↗ Disconnect</button>}
+        </header>
 
-      {/* Login Screen */}
-      {!isConnected ? (
-        <div style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>🔐 Login</h3>
-          <input type="password" placeholder="API Token" value={token} onChange={e => setToken(e.target.value)} style={inputStyle} />
-          <input type="text" placeholder="Account ID" value={accountId} onChange={e => setAccountId(e.target.value)} style={inputStyle} />
-          <button onClick={handleConnect} disabled={loading} style={{ ...btnPrimary, width: '100%' }}>
-            {loading ? 'Connecting...' : 'Connect & Save'}
-          </button>
-        </div>
-      ) : editingWorker ? (
-        
-        /* Editor Screen */
-        <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0 }}>✏️ {editingWorker}</h3>
-            <button onClick={() => setEditingWorker(null)} style={btnSmall}>Close</button>
-          </div>
-          <textarea 
-            value={code} onChange={e => setCode(e.target.value)} 
-            style={{ width: '100%', height: '400px', fontFamily: 'monospace', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '12px', boxSizing: 'border-box' }} 
-          />
-          <button onClick={handleDeploy} style={{ ...btnPrimary, width: '100%', marginTop: '10px' }}>🚀 Save & Deploy</button>
-        </div>
+        {status.msg && <div className={'status ' + (status.type || 'info')}>{status.type === 'success' ? '✓  ' : status.type === 'error' ? '⚠  ' : '◌  '}{status.msg}</div>}
 
-      ) : (
-        
-        /* Dashboard Screen */
-        <>
-          {/* Subdomain Manager */}
-          <div style={cardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: '15px' }}>🌐 Subdomain</h3>
-            <p style={{ fontSize: '13px', color: '#555' }}>वर्तमान: <b>{subdomain ? `*.${subdomain}.workers.dev` : 'कोई नहीं'}</b></p>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <input type="text" placeholder="नया Subdomain" value={newSubdomain} onChange={e => setNewSubdomain(e.target.value)} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
-              <button onClick={async () => { await updateSubdomain(token, accountId, newSubdomain); loadData(); setNewSubdomain(''); }} style={btnPrimary}>Save</button>
-            </div>
-          </div>
-
-          {/* Create Worker */}
-          <div style={cardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: '15px' }}>➕ New Worker</h3>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <input type="text" placeholder="worker-name" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
-              <button onClick={handleCreateWorker} style={btnPrimary}>Create</button>
-            </div>
-          </div>
-
-          {/* Workers List */}
-          <div style={cardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: '15px', marginBottom: '15px' }}>📋 Your Workers ({workers.length})</h3>
-            {workers.length === 0 && <p style={{ textAlign: 'center', color: '#888' }}>कोई Worker नहीं है</p>}
-            {workers.map(w => (
-              <div key={w.id} style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>⚡ {w.id}</div>
-                <a href={`https://${w.id}.${subdomain}.workers.dev`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#0066ff', display: 'block', marginTop: '2px', wordBreak: 'break-all' }}>
-                  https://{w.id}.{subdomain}.workers.dev
-                </a>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <button onClick={() => handleEdit(w.id)} style={btnSmall}>✏️ Edit</button>
-                  <button onClick={() => handleDownload(w.id)} style={{ ...btnSmall, color: '#0066ff', borderColor: '#93c5fd' }}>⬇️ Download</button>
-                  <button onClick={() => handleDelete(w.id)} style={{ ...btnSmall, color: '#dc2626', borderColor: '#fca5a5' }}>🗑️ Delete</button>
-                </div>
+        {!isConnected ? (
+          <div className="login">
+            <section className="glass hero"><div className="eyebrow">Secure access</div><h2>Your edge, <span className="shine">your control.</span></h2><p className="muted">Connect your Cloudflare account to manage Workers from one beautiful dashboard.</p></section>
+            <section className="glass panel">
+              <div className="heading"><div className="ico">🔐</div><div><h3>Connect account</h3><div className="muted">Enter your Cloudflare credentials</div></div></div>
+              <div className="stack">
+                <input className="field" type="password" autoComplete="off" placeholder="Cloudflare API Token" value={token} onChange={e => setToken(e.target.value)} />
+                <input className="field" placeholder="Account ID" value={accountId} onChange={e => setAccountId(e.target.value)} />
+                <button className="btn primary" style={{width:'100%'}} onClick={handleConnect} disabled={loading}>{loading ? 'Connecting...' : 'Connect account  →'}</button>
               </div>
-            ))}
+            </section>
           </div>
-        </>
-      )}
-    </div>
+        ) : editingWorker ? (
+          <>
+            <section className="glass hero"><div className="eyebrow">Worker editor</div><h2><span className="shine">{editingWorker}</span></h2><p className="muted">Edit your script and deploy the latest version.</p></section>
+            <section className="glass editor">
+              <div className="heading" style={{justifyContent:'space-between'}}><div className="heading" style={{margin:0}}><div className="ico">⌘</div><div><h3>Source code</h3><div className="muted">JavaScript module</div></div></div><button className="btn soft" onClick={() => setEditingWorker(null)}>✕ Close</button></div>
+              <textarea spellCheck="false" value={code} onChange={e => setCode(e.target.value)} />
+              <button className="btn primary" style={{width:'100%',marginTop:12}} onClick={handleDeploy}>🚀 Save & Deploy</button>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="glass hero">
+              <div className="eyebrow">Workspace overview</div><h2>Welcome to your <span className="shine">edge workspace.</span></h2><p className="muted">Manage scripts, domains and deployments — all in one place.</p>
+              <div className="stats"><div className="stat"><strong>{workers.length}</strong><span>Total Workers</span></div><div className="stat"><strong>{subdomain ? 'Active' : '—'}</strong><span>Workers domain</span></div><div className="stat"><strong>Live</strong><span>Account status</span></div></div>
+            </section>
+            <div className="grid">
+              <section className="glass panel">
+                <div className="heading"><div className="ico">🌐</div><div><h3>Workers domain</h3><div className="muted">Your public workers.dev address</div></div></div>
+                <div className="muted" style={{marginBottom:9}}>Current domain</div>
+                <div className="field" style={{height:'auto',minHeight:46,display:'flex',alignItems:'center',fontSize:12,overflowWrap:'anywhere'}}>{subdomain ? subdomain + '.workers.dev' : 'No domain configured'}</div>
+                <div className="row" style={{marginTop:10}}><input className="field" placeholder="New subdomain" value={newSubdomain} onChange={e => setNewSubdomain(e.target.value)} /><button className="btn primary" onClick={handleSubdomain}>Save</button></div>
+              </section>
+              <section className="glass panel">
+                <div className="heading"><div className="ico">✦</div><div><h3>Create a Worker</h3><div className="muted">Launch a new edge script</div></div></div>
+                <div className="muted" style={{marginBottom:9}}>Use lowercase letters, numbers and hyphens</div>
+                <div className="stack"><input className="field" placeholder="my-awesome-worker" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCreateWorker()} /><button className="btn primary" style={{width:'100%'}} onClick={handleCreateWorker}>＋ Create Worker</button></div>
+              </section>
+            </div>
+            <section className="glass workers">
+              <div className="heading" style={{justifyContent:'space-between',marginBottom:0}}><div className="heading" style={{margin:0}}><div className="ico">▤</div><div><h3>Your Workers</h3><div className="muted">{workers.length} script{workers.length === 1 ? '' : 's'} in your account</div></div></div><button className="btn soft" onClick={() => loadData()}>↻ Refresh</button></div>
+              {workers.length === 0 ? <div className="empty"><div style={{fontSize:29,marginBottom:8}}>⌁</div><strong>No Workers yet</strong><div className="muted">Create your first Worker to see it here.</div></div> : (
+                <div>
+                  {workers.map(w => <article className="worker" key={w.id}>
+                    <div className="wtop"><div className="wname"><span className="dot" />{w.id}</div><span className="eyebrow">WORKER</span></div>
+                    {subdomain ? <a href={'https://' + w.id + '.' + subdomain + '.workers.dev'} target="_blank" rel="noreferrer">↗ https://{w.id}.{subdomain}.workers.dev</a> : <div className="muted" style={{margin:'9px 0 13px'}}>Configure a workers.dev domain to get a public URL.</div>}
+                    <div className="actions"><button className="btn soft" onClick={() => handleEdit(w.id)}>✎ Edit code</button><button className="btn soft" onClick={() => handleDownload(w.id)}>↓ Download</button><button className="btn danger" onClick={() => handleDelete(w.id)}>⌫ Delete</button></div>
+                  </article>)}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+        <footer className="footer">CF MANAGER · BUILT FOR THE EDGE</footer>
+      </div>
+    </main>
   );
 }
-
-// Styles
-const cardStyle = { background: '#fff', padding: '15px', borderRadius: '10px', marginBottom: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
-const inputStyle = { width: '100%', padding: '12px', marginBottom: '10px', border: '1px solid #ccc', borderRadius: '8px', boxSizing: 'border-box', fontSize: '14px' };
-const btnPrimary = { background: '#f38020', color: '#fff', border: 'none', padding: '12px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' };
-const btnSmall = { background: '#fff', color: '#333', border: '1px solid #ccc', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' };
-const btnLogout = { background: '#fee2e2', color: '#991b1b', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' };

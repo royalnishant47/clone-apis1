@@ -112,7 +112,16 @@ export default function Home() {
         * { box-sizing: border-box; }
         body { margin:0; background:#080d0c; color:#f5f7ff; font-family:'DM Sans',sans-serif; }
         button,input,textarea { font:inherit; }
-        .shell { min-height:100vh; padding:30px 16px 60px; overflow:hidden; background:radial-gradient(ellipse at 10% 5%,#164b3b38,transparent 35%),radial-gradient(ellipse at 95% 25%,#1dbb8a20,transparent 32%),linear-gradient(145deg,#080d0c,#101b18 55%,#090f0d); }
+        .shell { min-height:100vh; padding:30px 16px 60px; overflow:hidden; position:relative; isolation:isolate; background:radial-gradient(ellipse at 10% 5%,#164b3b38,transparent 35%),radial-gradient(ellipse at 95% 25%,#1dbb8a20,transparent 32%),linear-gradient(145deg,#080d0c,#101b18 55%,#090f0d); }
+        .shell:before { content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(#b7f7d008 1px,transparent 1px),linear-gradient(90deg,#b7f7d008 1px,transparent 1px);background-size:54px 54px;mask-image:linear-gradient(to bottom,#000 0%,transparent 85%); }
+        .shell:after { content:'';position:fixed;width:560px;height:560px;top:-190px;left:-180px;z-index:-1;pointer-events:none;border-radius:50%;background:radial-gradient(circle,#28c58a26 0%,#28c58a0c 38%,transparent 70%);filter:blur(18px);animation:ambientDrift 17s ease-in-out infinite alternate; }
+        @keyframes ambientDrift { from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(45vw,28vh,0) scale(1.25)} }
+        @keyframes softPulse { 0%,100%{opacity:.45;transform:scale(.96)}50%{opacity:.85;transform:scale(1.05)} }
+        .hero { box-shadow:0 22px 55px #0005,inset 0 1px #ffffff19,0 0 55px #2ac58b0b; }
+        .logo { animation:softPulse 5s ease-in-out infinite; }
+        .glass { transition:border-color .3s,box-shadow .3s,background .3s; }
+        .glass:hover { box-shadow:0 24px 60px #0007,inset 0 1px #ffffff22,0 0 34px #2ac58b12; }
+        @media(prefers-reduced-motion:reduce) { .shell:after,.logo { animation:none!important; } }
         .wrap { max-width:900px; margin:auto; }
         .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; gap:12px; }
         .brand { display:flex; align-items:center; gap:13px; }
